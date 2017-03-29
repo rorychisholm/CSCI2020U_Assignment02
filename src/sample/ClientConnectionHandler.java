@@ -1,7 +1,6 @@
 package sample;
 
 import java.io.*;
-import java.net.*;
 import java.net.Socket;
 
 /**
@@ -11,10 +10,10 @@ import java.net.Socket;
 public class ClientConnectionHandler implements Runnable {
 
     ///////////////////////Taken From HttpRequestHandler///////////////////////
-        public static String WEB_ROOT = "wwwRoot";
-
+        public static String ROOT = "ServerStorage";
         private Socket socket;
         private DataOutputStream out;
+        private PrintWriter out2;
 
         public ClientConnectionHandler(Socket socket) {
             this.socket = socket;
@@ -27,42 +26,58 @@ public class ClientConnectionHandler implements Runnable {
                 BufferedReader in = new BufferedReader(
                         new InputStreamReader(is)
                 );
+
                 OutputStream os = socket.getOutputStream();
-                out = new DataOutputStream(os);
-                //GET /index.html HTTP/1.1
+                //out = new DataOutputStream(os);
+                out2 = new PrintWriter(os);
+
                 String request = in.readLine();
-                String[] requestParts = request.split(" ");
+                String[] requestParts = request.split(" ");// CMD Uri
 
-                if (requestParts.length < 3) {
-                    sendError(400, "Bad request"); // syntax error in HTTP request
-                    return;
-                }
-
-                String command = requestParts[0];
-                String uri = requestParts[1];
-
-                if (command.equalsIgnoreCase("GET")) {
-                    File localFile = new File(WEB_ROOT, uri);
-                    if (localFile.exists()) {
-                        // send the file's contents to the socket
-                        byte[] contents = readFileContents(localFile);
-                        sendResponse(200,
-                                "Ok",
-                                getContentType(localFile),
-                                contents);
-                    } else {
-                        // 404 - file not found
-                        sendError(404, "Not found");
-                    }
+                String command = requestParts[0]; // GET
+                if (command.equalsIgnoreCase("DIR")) {
+                    cmdDIR();
+                }else if (command.equalsIgnoreCase("DOWNLOAD")){
+                    cmdDOWNLOAD(requestParts[1]);
                 } else {
                     // 405 - method not allowed (invalid HTTP method)
-                    sendError(405, "Method Not Allowed");
+                    System.out.println ("CMD not found.");
+                    //sendError(405, "Method Not Allowed");
                 }
-
                 socket.close();
+            }catch (FileNotFoundException e){
+               System.out.println("FileNotFoundException");
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+
+        private void cmdDIR(){
+            System.out.println("cmd DIR Detected");
+            String toSend = "";
+            File baseDir = new File(ROOT);
+            File fileList[] = baseDir.listFiles();
+            for (int i = 0; i< fileList.length; i++){
+                toSend += fileList[i].getName();
+                if (i != (fileList.length - 1)){
+                    toSend += " ";
+                }
+            }
+            out2.print(toSend);
+            out2.flush();
+        }
+
+        private void cmdDOWNLOAD(String fileName) throws IOException{
+            System.out.println("cmd DOWNLOAD Detected");
+            String toSend = "", line = "";
+            File file = new File(ROOT, fileName);
+            BufferedReader in = new BufferedReader(new FileReader(file));
+            while ((line = in.readLine()) != null){
+                toSend += line;
+                toSend += "\n";
+            }
+            out2.print(toSend);
+            out2.flush();
         }
 
         private String getContentType(File file) {
