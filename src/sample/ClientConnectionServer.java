@@ -1,6 +1,7 @@
 package sample;
 
 import java.io.IOException;
+import java.net.BindException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Vector;
@@ -11,38 +12,33 @@ import java.util.Vector;
 public class ClientConnectionServer extends Thread{
     private ServerSocket serverSocket;
     private int port;
-    private boolean running;
 
     public ClientConnectionServer(int port) throws IOException {
         this.port = port;
         serverSocket = new ServerSocket(port);
-        running = true;
     }
 
     public void handleRequests() throws IOException {
         try {
             int i = 0;
-            Vector<Thread> handlerThread = new Vector<Thread>();
+            Vector<Thread> handlerThread = new Vector<Thread>(); // Vector of threads to make it Multithreading
             while (!serverSocket.isClosed()) {
-                System.out.println("MoonServer v0.9 listening on port " + port);
-                Socket socket = serverSocket.accept();
-                System.out.println("Found");
-                ClientConnectionHandler handler = new ClientConnectionHandler(socket);
-                handlerThread.add(i, new Thread(handler));
-                handlerThread.get(i).start();
-                i++;
+                    System.out.println("ClientConnectionServer listening on port " + port); // Displays waiting text
+                    Socket socket = serverSocket.accept(); // Waits for clients to get sockets
+                    System.out.println("Client Found..."); // When client is connected
+                    handlerThread.add(i, new Thread(new ClientConnectionHandler(socket))); // makes new thread to handle it
+                    handlerThread.get(i).start(); // starts new thread
+                    i++;
             }
-        } catch (IOException e) {
-            System.out.println("Socket Closed");
-        }
+        } catch (IOException e) {}
     }
 
-    public void quit() {
+    public void quit() { // Helps let the thread close
         try {
             serverSocket.close();
-            System.out.println("Socket Closing");
+            //System.out.println("Socket Closing");
         } catch (IOException e) {
-            System.out.println("Socket Closed");
+            //System.out.println("Socket Closed");
         }
     }
 

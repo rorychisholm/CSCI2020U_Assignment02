@@ -8,11 +8,8 @@ import java.net.Socket;
  */
 // "127.0.0.1 is the loopback Internet protocol (IP) address also referred to as the localhost."
 public class ClientConnectionHandler implements Runnable {
-
-    ///////////////////////Taken From HttpRequestHandler///////////////////////
-        public static String ROOT = "ServerStorage";
+        public static String ROOT = "ServerStorage"; // Root for server storage
         private Socket socket;
-        private DataOutputStream out;
         private PrintWriter out2;
 
         public ClientConnectionHandler(Socket socket) {
@@ -21,28 +18,29 @@ public class ClientConnectionHandler implements Runnable {
 
         public void run() {
             try {
-
+                // opens streams
                 InputStream is = socket.getInputStream();
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(is)
-                );
-
+                BufferedReader in = new BufferedReader(new InputStreamReader(is));
                 OutputStream os = socket.getOutputStream();
-                //out = new DataOutputStream(os);
                 out2 = new PrintWriter(os);
-
-                String request = in.readLine();
+                // Waits for command
+                String request = null;
+                while (request == null) {
+                    request = in.readLine();
+                }
+                //Sorts command into array
                 String[] requestParts = request.split(" ");// CMD Uri
 
-                String command = requestParts[0]; // GET
+                // Deals with command
+                String command = requestParts[0];
                 if (command.equalsIgnoreCase("DIR")) {
                     cmdDIR();
+                }else if (command.equalsIgnoreCase("UPLOAD")){
+                    cmdUPLOAD(requestParts[1]);
                 }else if (command.equalsIgnoreCase("DOWNLOAD")){
                     cmdDOWNLOAD(requestParts[1]);
                 } else {
-                    // 405 - method not allowed (invalid HTTP method)
                     System.out.println ("CMD not found.");
-                    //sendError(405, "Method Not Allowed");
                 }
                 socket.close();
             }catch (FileNotFoundException e){
@@ -51,9 +49,7 @@ public class ClientConnectionHandler implements Runnable {
                 e.printStackTrace();
             }
         }
-
-        private void cmdDIR(){
-            System.out.println("cmd DIR Detected");
+        private void cmdDIR(){ // Handles DIR command, sends list of files in a string
             String toSend = "";
             File baseDir = new File(ROOT);
             File fileList[] = baseDir.listFiles();
@@ -67,8 +63,36 @@ public class ClientConnectionHandler implements Runnable {
             out2.flush();
         }
 
-        private void cmdDOWNLOAD(String fileName) throws IOException{
-            System.out.println("cmd DOWNLOAD Detected");
+        private void cmdUPLOAD(String fileName) throws IOException{ // Handles UPLOAD command
+            try {
+                // open streams
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                PrintWriter out = new PrintWriter(socket.getOutputStream());
+                // read saves the response
+                String response;
+                File newFile = new File("ServerStorage", fileName);
+                if (!newFile.exists()) { // Overwrites files
+                    newFile.createNewFile();
+                } else {
+                    newFile.delete();
+                    newFile.createNewFile();
+                }
+                PrintWriter fout = new PrintWriter(newFile);
+                while ((response = in.readLine()) != null) {
+                    fout.println(response);
+                }
+                fout.close();
+                // close the connection
+                out.close();
+                in.close();
+                socket.close();
+            } catch (IOException e) {
+                System.out.println(e);
+                e.printStackTrace();
+            }
+    }
+
+        private void cmdDOWNLOAD(String fileName) throws IOException{ // Handles DOWNLOAD command, sends file as string
             String toSend = "", line = "";
             File file = new File(ROOT, fileName);
             BufferedReader in = new BufferedReader(new FileReader(file));
@@ -79,65 +103,4 @@ public class ClientConnectionHandler implements Runnable {
             out2.print(toSend);
             out2.flush();
         }
-
-        private String getContentType(File file) {
-            String filename = file.getName();
-            if (filename.endsWith(".html") || filename.endsWith(".htm")) {
-                return "text/html";
-            } else if (filename.endsWith(".txt")) {
-                return "text/plain";
-            } else if (filename.endsWith(".css")) {
-                return "text/css";
-            } else if (filename.endsWith(".js")) {
-                return "text/javascript";
-            } else if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
-                return "image/jpeg";
-            } else if (filename.endsWith(".gif")) {
-                return "image/gif";
-            } else if (filename.endsWith(".png")) {
-                return "image/png";
-            }
-            return "unknown";
-        }
-
-        private byte[] readFileContents(File file) throws IOException {
-            byte[] content = new byte[(int)file.length()];
-
-            FileInputStream fis = new FileInputStream(file);
-            fis.read(content);
-            fis.close();
-            return content;
-        }
-
-        private void sendError(int responseCode, String responseText) throws IOException {
-            String errorPage =
-                    "<!DOCTYPE html>" +
-                            "<html><head><title>" +
-                            responseText +
-                            "</title></head>" +
-                            "<body><h1>" +
-                            responseCode + " - " + responseText +
-                            "</h1></body></html>";
-            sendResponse(responseCode,
-                    responseText,
-                    "text/html",
-                    errorPage.getBytes());
-        }
-
-        private void sendResponse(int responseCode, String responseText, String contentType, byte[] content) throws IOException {
-            String response = "HTTP/1.1 " +
-                    responseCode +
-                    " " +
-                    responseText +
-                    "\r\n";
-            out.writeBytes(response);
-            out.writeBytes("Content-Type: " + contentType + "\r\n");
-            out.writeBytes("Content-Length: " + content.length + "\r\n");
-            out.writeBytes("Server: MoonServer v0.9\r\n");
-            out.writeBytes("Date: " + (new java.util.Date()).toString() + "\r\n");
-            out.writeBytes("Connection: Close\r\n\r\n");
-            out.write(content);
-            out.flush();
-        }
-    ///////////////////////Ends Here///////////////////////
 }
